@@ -32,7 +32,12 @@ from pywidevine.pssh import PSSH
 system = platform.system()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DMR_DIR = os.path.join(BASE_DIR, "dmr")
-CURRENT_VERSION = "1.0.1"
+
+#logs
+DEBUG_MODE = False 
+DEBUG_FILE = os.path.join(DMR_DIR, "debug.log")
+
+CURRENT_VERSION = "1.0.2"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/jordon31/OnlySnap/main/OnlySnap.py"
 
 if system == "Windows":
@@ -307,16 +312,41 @@ class DownloadManager:
             with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
                 futures = []
 
-                # A. CHATS
+                # A. CHATS -- Added DRM but no tested
                 if chats_list:
                     cp = f"Profiles/{PROFILE}/Media/Chat/Photos/"
                     cv = f"Profiles/{PROFILE}/Media/Chat/Videos/"
                     for chat in chats_list:
+                        chat_id = str(chat.get("id"))
                         for media in chat.get("media", []):
-                            src = media.get("files", {}).get("full", {}).get("url")
-                            if src:
-                                p = cv if media['type'] == 'video' else cp
-                                futures.append(executor.submit(download_media, media, False, path=p, source_url=src))
+                            source_url = None
+                            files = media.get("files", {})
+                            cf_cookies = None
+                            
+                            if "drm" in files and files["drm"]:
+                                source_url = files["drm"].get("manifest", {}).get("dash")
+                                signature = files["drm"].get("signature", {}).get("dash", {})
+                                if signature:
+                                    p = signature.get("CloudFront-Policy")
+                                    s = signature.get("CloudFront-Signature")
+                                    k = signature.get("CloudFront-Key-Pair-Id")
+                                    if p and s and k: 
+                                        cf_cookies = f"CloudFront-Policy={p}; CloudFront-Signature={s}; CloudFront-Key-Pair-Id={k}"
+                            
+                            if not source_url:
+                                source_url = files.get("full", {}).get("url") or files.get("preview", {}).get("url")
+                            
+                            if source_url:
+                                p = cv if media['type'] in ['video', 'gif'] else cp
+                                futures.append(executor.submit(
+                                    download_media, 
+                                    media, 
+                                    False, 
+                                    path=p, 
+                                    source_url=source_url,
+                                    post_id=chat_id,        
+                                    specific_cookies=cf_cookies
+                                ))
 
                 # B. STORIES
                 if stories_list:
@@ -427,7 +457,7 @@ class DownloadManager:
             self.log("------------------------------------------------")
             if new_files == 0:
                 self.log(f"NO NEW FILES TO DOWNLOAD.")
-                self.log(f"All {total_global_failes} files are already up to date.")
+                self.log(f"All {total_global_files} files are already up to date.")
             else:
                 self.log("SYNC COMPLETED.")
                 self.log(f"- Total files scanned: {total_global_files}")
@@ -656,7 +686,7 @@ class OnlySnapTUI(App):
                 self.log_msg(f"Synced {len(self.all_subs)} creators.")
                 
         except Exception as e:
-            self.log_msg(f"Update error: {e}")
+            self.log_msg("Update error:Please Update Cookies")
 
     def update_table(self):
         table = self.query_one(DataTable)
@@ -1238,6 +1268,8 @@ def download_public_files():
 # ==========================================
 
 def log_debug(msg):
+    if DEBUG_MODE == False:
+        return        
     try:
         timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(DEBUG_FILE, "a", encoding="utf-8") as f:
@@ -1356,12 +1388,13 @@ def download_drm_video(mpd_url, output_path, output_name, post_id, cookies_overr
     save_dir = os.path.dirname(output_path)
     assure_dir(save_dir)
 
-    temp_dir = os.path.join(save_dir, "temp_dl")
+    clean_name = re.sub(r'[<>:"/\\|?*]', '', output_name)
+    #fixed
+    temp_dir = os.path.join(save_dir, f"temp_dl_{clean_name}")
+    
     if os.path.exists(temp_dir):
         try: shutil.rmtree(temp_dir)
         except: pass
-
-    clean_name = re.sub(r'[<>:"/\\|?*]', '', output_name)
     
     # Get PSSH from MPD
     pssh = get_pssh_from_mpd(mpd_url, cookies_override)
@@ -1382,7 +1415,8 @@ def download_drm_video(mpd_url, output_path, output_name, post_id, cookies_overr
         "--del-after-done",
         "--auto-select",
         "-M", "format=mp4",
-        "--log-level", "OFF"
+        "--log-level", "OFF",
+        "--no-log"
     ]
 
     if keys:
@@ -1733,7 +1767,7 @@ def download_highlights(highlights, file_callback=None):
             finally:
                 if file_callback: file_callback()
 
-def download_chats(chats):
+def download_chats(chats): # Added DRM but no tested
     if not isinstance(chats, list):
         return
 
@@ -1748,25 +1782,41 @@ def download_chats(chats):
         if ("#adv" in text or "#ad" in text or "spin" in text or "#spins" in text or "#Advertisement" in text or "https://of.tv/" in text):
             continue
 
+        chat_id = str(chat.get("id"))
         media_items = chat.get("media", [])
+        
         for media_item in media_items:
             media_type = media_item["type"]
-
+            files = media_item.get("files", {})
+            
             source_url = None
-            if "full" in media_item["files"]:
-                source_url = media_item["files"]["full"].get("url")
-            elif "thumb" in media_item["files"]:
-                source_url = media_item["files"]["thumb"].get("url")
-            elif "preview" in media_item["files"]:
-                source_url = media_item["files"]["preview"].get("url")
-            elif "squarePreview" in media_item["files"]:
-                source_url = media_item["files"]["squarePreview"].get("url")
+            cf_cookies = None
+            
+            if "drm" in files and files["drm"]:
+                source_url = files["drm"].get("manifest", {}).get("dash")
+                signature = files["drm"].get("signature", {}).get("dash", {})
+                if signature:
+                    p = signature.get("CloudFront-Policy")
+                    s = signature.get("CloudFront-Signature")
+                    k = signature.get("CloudFront-Key-Pair-Id")
+                    if p and s and k:
+                        cf_cookies = f"CloudFront-Policy={p}; CloudFront-Signature={s}; CloudFront-Key-Pair-Id={k}"
+
+            if not source_url:
+                if "full" in files:
+                    source_url = files["full"].get("url")
+                elif "thumb" in files:
+                    source_url = files["thumb"].get("url")
+                elif "preview" in files:
+                    source_url = files["preview"].get("url")
+                elif "squarePreview" in files:
+                    source_url = files["squarePreview"].get("url")
 
             if source_url:
                 if media_type == "photo":
-                    photos_to_download.append((media_item, source_url))
-                elif media_type == "video":
-                    videos_to_download.append((media_item, source_url))
+                    photos_to_download.append((media_item, source_url, chat_id, cf_cookies))
+                elif media_type in ["video", "gif"]:
+                    videos_to_download.append((media_item, source_url, chat_id, cf_cookies))
 
     if not photos_to_download and not videos_to_download:
         return
@@ -1780,14 +1830,30 @@ def download_chats(chats):
         if photos_to_download:
             photos_path = chat_path + "/Photos/"
             assure_dir(photos_path)
-            for media_item, source_url in photos_to_download:
-                futures.append(executor.submit(download_media, media_item, False, path=photos_path, source_url=source_url))
+            for media_item, source_url, chat_id, cf_cookies in photos_to_download:
+                futures.append(executor.submit(
+                    download_media, 
+                    media_item, 
+                    False, 
+                    path=photos_path, 
+                    source_url=source_url,
+                    post_id=chat_id,
+                    specific_cookies=cf_cookies
+                ))
 
         if videos_to_download:
             videos_path = chat_path + "/Videos/"
             assure_dir(videos_path)
-            for media_item, source_url in videos_to_download:
-                futures.append(executor.submit(download_media, media_item, False, path=videos_path, source_url=source_url))
+            for media_item, source_url, chat_id, cf_cookies in videos_to_download:
+                futures.append(executor.submit(
+                    download_media, 
+                    media_item, 
+                    False, 
+                    path=videos_path, 
+                    source_url=source_url,
+                    post_id=chat_id,
+                    specific_cookies=cf_cookies
+                ))
 
         for future in as_completed(futures):
             future.result()
