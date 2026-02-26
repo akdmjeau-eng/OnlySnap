@@ -1,4 +1,4 @@
-#  OnlySnap V2 -- a update? what???
+#  OnlySnap V2
 
 **Yoooo**
 
@@ -20,21 +20,20 @@ It's stupid easy. Other tools out there require a PhD in coding to run; mine is 
 
 1.  **Python 3.10+** required.
 2.  Install requirements: `pip install -r requirements.txt`
-3.  Click `run.bat`.
+3.  Click `!run.bat`.
 4.  Video: [tutorial](https://youtu.be/5tMwjg5hXNY)
 
 ### THE LAUNCHER
 
-Inside `run.bat` you have 2 options. Don't mess this up.
+Inside `!run.bat` you have 2 options. Don't mess this up.
 
-* **[1] AUTO-PASTE (DO THIS FIRST!):**
+* **[1] START ONLYSNAP:**
+    * Opens the main app.
+* **[2] AUTO-PASTE (DO THIS FIRST!):**
     * Go to Browser -> F12 -> Network -> Click on "Fetch/XHR" -> chat api for no miss nothing. [chats](https://onlyfans.com/my/chats)
     * Copy the headers/request.
     *  [![Screenshot](https://i.postimg.cc/TwS30f62/Screenshot-2026-02-09-021826.png)](https://postimg.cc/7G34Yvhj)
     * Run Option 1. The script **yeets** the cookies straight into the config. No manual copy-paste struggle.
-* **[2] START ONLYSNAP:**
-    * Opens the main app.
-
 ---
 
 ## ⚙️ SETTINGS (STOP EDITING JSON FILES)
@@ -62,3 +61,5 @@ You can change everything there. But if you are confused, here is what the butto
 * **Credits:** Me. I built this while you were sleeping.
 * **Bugs:** It works on my machine. (any problem / suggestion open issues)
 * **Disclaimer:** For educational purposes only (wink wink).
+
+OnlyFans Scrape - Scrape OnlyFans
