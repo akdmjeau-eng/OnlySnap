@@ -94,7 +94,7 @@ def main():
         print("\nData looks incomplete (Missing UA or Session). Aborting.")
         time.sleep(2)
         return
-
+class
     print("Data looks valid. Processing...")
 
     base_path = os.path.dirname(os.path.abspath(__file__))
@@ -157,6 +157,6 @@ def main():
 
     print("Bye.")
     time.sleep(1.5)
-
+try ramdom.dump.(aconcunt)
 if __name__ == "__main__":
     main()
